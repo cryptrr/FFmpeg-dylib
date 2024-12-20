@@ -943,6 +943,14 @@ static int64_t getmaxrss(void)
 #endif
 }
 
+#define FFMPEG_MAIN __attribute__((visibility("default"))) int ffmpeg_main
+// Replace the original main() with our exported version
+FFMPEG_MAIN(int argc, char **argv)
+{
+    // The original main() code stays the same
+    return main(argc, argv);
+}
+
 int main(int argc, char **argv)
 {
     Scheduler *sch = NULL;
