@@ -81,6 +81,7 @@
 #include "ffmpeg.h"
 #include "ffmpeg_sched.h"
 #include "ffmpeg_utils.h"
+#define FFMPEG_MAIN __attribute__((visibility("default"))) int ffmpeg_main
 
 const char program_name[] = "ffmpeg";
 const int program_birth_year = 2000;
@@ -93,6 +94,7 @@ typedef struct BenchmarkTimeStamps {
     int64_t sys_usec;
 } BenchmarkTimeStamps;
 
+static int real_main(int argc, char **argv);
 static BenchmarkTimeStamps get_benchmark_time_stamps(void);
 static int64_t getmaxrss(void);
 
@@ -943,15 +945,12 @@ static int64_t getmaxrss(void)
 #endif
 }
 
-#define FFMPEG_MAIN __attribute__((visibility("default"))) int ffmpeg_main
-// Replace the original main() with our exported version
 FFMPEG_MAIN(int argc, char **argv)
 {
-    // The original main() code stays the same
-    return main(argc, argv);
+    return real_main(argc, argv);
 }
 
-int main(int argc, char **argv)
+static int real_main(int argc, char **argv)
 {
     Scheduler *sch = NULL;
 
