@@ -1,43 +1,83 @@
-# Compiler and linker flags
-CC ?= gcc
-CFLAGS += -fPIC -Wall -Wextra
-LDFLAGS += -shared
+AVPROGS-$(CONFIG_FFMPEG)   += ffmpeg
+AVPROGS-$(CONFIG_FFPLAY)   += ffplay
+AVPROGS-$(CONFIG_FFPROBE)  += ffprobe
 
-# FFmpeg library dependencies
-FFMPEG_LIBS = -lavcodec -lavformat -lavfilter -lavdevice -lavutil -lswresample -lswscale
+AVPROGS     := $(AVPROGS-yes:%=%$(PROGSSUF)$(EXESUF))
+PROGS       += $(AVPROGS)
 
-# Source files
-FFMPEG_SRCS = fftools/ffmpeg.c \
-              fftools/ffmpeg_dec.c \
-              fftools/ffmpeg_demux.c \
-              fftools/ffmpeg_enc.c \
-              fftools/ffmpeg_filter.c \
-              fftools/ffmpeg_hw.c \
-              fftools/ffmpeg_mux.c \
-              fftools/ffmpeg_mux_init.c \
-              fftools/ffmpeg_opt.c \
-              fftools/ffmpeg_sched.c \
-              fftools/sync_queue.c \
-              fftools/thread_queue.c \
-              fftools/cmdutils.c \
-              fftools/opt_common.c
+AVBASENAMES  = ffmpeg ffplay ffprobe
+ALLAVPROGS   = $(AVBASENAMES:%=%$(PROGSSUF)$(EXESUF))
+ALLAVPROGS_G = $(AVBASENAMES:%=%$(PROGSSUF)_g$(EXESUF))
 
-# Object files
-FFMPEG_OBJS = $(FFMPEG_SRCS:.c=.o)
+OBJS-ffmpeg +=                  \
+    fftools/ffmpeg_dec.o        \
+    fftools/ffmpeg_demux.o      \
+    fftools/ffmpeg_enc.o        \
+    fftools/ffmpeg_filter.o     \
+    fftools/ffmpeg_hw.o         \
+    fftools/ffmpeg_mux.o        \
+    fftools/ffmpeg_mux_init.o   \
+    fftools/ffmpeg_opt.o        \
+    fftools/ffmpeg_sched.o      \
+    fftools/sync_queue.o        \
+    fftools/thread_queue.o      \
 
-# Main target
-all: libffmpeg.so
+LIBNAME = libffmpeg
+LIBVERSION = 1
 
-# Build shared library
-libffmpeg.so: $(FFMPEG_OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^ $(FFMPEG_LIBS)
+# Add shared library target
+SLIB_INSTALL_EXTRA_SHLIB = $(LIBNAME)
+SLIB_INSTALL_EXTRA_TARGETS = install-lib-shared
 
-# Build object files
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+# Add PIC flags for shared library
+CFLAGS += -fPIC
 
-# Clean target
-clean:
-	rm -f $(FFMPEG_OBJS) libffmpeg.so
+OBJS-ffplay += fftools/ffplay_renderer.o
 
-.PHONY: all clean
+define DOFFTOOL
+OBJS-$(1) += fftools/cmdutils.o fftools/opt_common.o fftools/$(1).o $(OBJS-$(1)-yes)
+ifdef HAVE_GNU_WINDRES
+OBJS-$(1) += fftools/fftoolsres.o
+endif
+$(1)$(PROGSSUF)_g$(EXESUF): $$(OBJS-$(1))
+$$(OBJS-$(1)): | fftools
+$$(OBJS-$(1)): CFLAGS  += $(CFLAGS-$(1))
+$(1)$(PROGSSUF)_g$(EXESUF): LDFLAGS += $(LDFLAGS-$(1))
+$(1)$(PROGSSUF)_g$(EXESUF): FF_EXTRALIBS += $(EXTRALIBS-$(1))
+-include $$(OBJS-$(1):.o=.d)
+endef
+
+$(foreach P,$(AVPROGS-yes),$(eval $(call DOFFTOOL,$(P))))
+
+LIBOBJS = $(OBJS-ffmpeg)
+SLIBOBJS = $(LIBOBJS:.o=.os)
+
+$(SLIBOBJS): %.os: %.c
+	$(CC) $(CFLAGS) -fPIC -c -o $@ $
+
+$(LIBNAME).so: $(SLIBOBJS)
+	$(CC) -shared -Wl,-soname,$(LIBNAME).so.$(LIBVERSION) -o $@ $^ $(FF_EXTRALIBS)
+
+all: $(AVPROGS) $(LIBNAME).so
+
+fftools/ffprobe.o fftools/cmdutils.o: libavutil/ffversion.h | fftools
+OUTDIRS += fftools
+
+ifdef AVPROGS
+install: install-progs install-data
+endif
+
+install-progs-yes:
+install-progs-$(CONFIG_SHARED): install-libs
+
+install-progs: install-progs-yes $(AVPROGS)
+	$(Q)mkdir -p "$(BINDIR)"
+	$(INSTALL) -c -m 755 $(AVPROGS) "$(BINDIR)"
+
+uninstall: uninstall-progs
+
+uninstall-progs:
+	$(RM) $(addprefix "$(BINDIR)/", $(ALLAVPROGS))
+
+clean::
+	$(RM) $(ALLAVPROGS) $(ALLAVPROGS_G) $(CLEANSUFFIXES:%=fftools/%)
