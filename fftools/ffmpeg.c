@@ -95,7 +95,7 @@ typedef struct BenchmarkTimeStamps {
 } BenchmarkTimeStamps;
 
 FFMPEG_MAIN(int argc, char **argv);
-int real_main(int argc, char **argv);
+int main(int argc, char **argv);
 static BenchmarkTimeStamps get_benchmark_time_stamps(void);
 static int64_t getmaxrss(void);
 
@@ -948,10 +948,10 @@ static int64_t getmaxrss(void)
 
 FFMPEG_MAIN(int argc, char **argv)
 {
-    return real_main(argc, argv);
+    return main(argc, argv);
 }
 
-int real_main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     Scheduler *sch = NULL;
 
